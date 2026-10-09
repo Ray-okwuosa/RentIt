@@ -15,22 +15,22 @@ import {
 export const createBooking = async (req, res) => {
   try {
     const {
-      renterId,
       equipmentId,
       startDate,
       endDate,
     } = req.body;
 
+    const renterId = req.user.id;
+
     // 1. Validate required fields
     if (
-      !renterId ||
       !equipmentId ||
       !startDate ||
       !endDate
     ) {
       return res.status(400).json({
         message:
-          "renterId, equipmentId, startDate and endDate are required",
+          "equipmentId, startDate and endDate are required",
       });
     }
 
@@ -173,6 +173,11 @@ export const approveBooking = async (req, res) => {
         throw new Error("BOOKING_NOT_FOUND");
       }
 
+      // Only the owner associated with this booking can approve it.
+      if (booking.ownerId.toString() !== req.user.id) {
+        throw new Error("NOT_BOOKING_OWNER");
+      }
+
       // 2. Only pending bookings may be approved
       if (booking.status !== "pending") {
         throw new Error("BOOKING_NOT_PENDING");
@@ -262,6 +267,13 @@ export const approveBooking = async (req, res) => {
       });
     }
 
+    if (error.message === "NOT_BOOKING_OWNER") {
+      return res.status(403).json({
+        message: "You are not authorized to approve this booking",
+      });
+    }
+
+    //General error handling for unexpected errors
     console.error("Approve booking error:", error);
 
     return res.status(500).json({
@@ -288,6 +300,13 @@ export const rejectBooking = async (req, res) => {
     if (!booking) {
       return res.status(404).json({
         message: "Booking not found",
+      });
+    }
+
+    // Only the owner associated with this booking can reject it.
+    if (booking.ownerId.toString() !== req.user.id) {
+      return res.status(403).json({
+        message: "You are not authorized to reject this booking",
       });
     }
 
@@ -340,6 +359,18 @@ export const cancelBooking = async (req, res) => {
     if (!booking) {
       return res.status(404).json({
         message: "Booking not found",
+      });
+    }
+
+    // Only the renter or owner associated with this booking can cancel it.
+    const userId = req.user.id;
+
+    const isRenter = booking.renterId.toString() === userId;
+    const isOwner = booking.ownerId.toString() === userId;
+
+    if (!isRenter && !isOwner) {
+      return res.status(403).json({
+        message: "You are not authorized to cancel this booking",
       });
     }
 
@@ -399,6 +430,18 @@ export const getBookingById = async (req, res) => {
       });
     }
 
+    // Only the renter or owner associated with this booking can view it.
+    const userId = req.user.id;
+
+    const isRenter = booking.renterId.toString() === userId;
+    const isOwner = booking.ownerId.toString() === userId;
+
+    if (!isRenter && !isOwner) {
+      return res.status(403).json({
+        message: "You are not authorized to view this booking",
+      });
+    }
+
     return res.status(200).json({
       message: "Booking retrieved successfully",
       booking,
@@ -413,9 +456,22 @@ export const getBookingById = async (req, res) => {
 };
 
 // GET ALL BOOKINGS
+
 export const getAllBookings = async (req, res) => {
   try {
-    const bookings = await Booking.find()
+    let filter = {};
+
+    if (req.user.role === "renter") {
+      filter.renterId = req.user.id;
+    } else if (req.user.role === "owner") {
+      filter.ownerId = req.user.id;
+    } else if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "You are not authorized to view bookings",
+      });
+    }
+
+    const bookings = await Booking.find(filter)
       .sort({ createdAt: -1 });
 
     return res.status(200).json({

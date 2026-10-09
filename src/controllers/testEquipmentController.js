@@ -5,27 +5,29 @@ import {
   validateDateRange,
 } from "../utils/dateUtils.js";
 
-//CREATE TEST EQUIPMENT FOR TESTING
+// CREATE TEST EQUIPMENT
 export const createTestEquipment = async (req, res) => {
   try {
     const {
-      ownerId,
       name,
       pricePerDay,
       securityDeposit,
     } = req.body;
 
+    // Validate the required equipment details.
     if (
-      !ownerId ||
       !name ||
       pricePerDay === undefined ||
       securityDeposit === undefined
     ) {
       return res.status(400).json({
         message:
-          "ownerId, name, pricePerDay and securityDeposit are required",
+          "name, pricePerDay and securityDeposit are required",
       });
     }
+
+    // The authenticated user's ID determines ownership.
+    const ownerId = req.user.id;
 
     const equipment = await Equipment.create({
       ownerId,
@@ -39,14 +41,15 @@ export const createTestEquipment = async (req, res) => {
       equipment,
     });
   } catch (error) {
+    console.error("Create test equipment error:", error);
+
     return res.status(500).json({
       message: "Failed to create test equipment",
-      error: error.message,
     });
   }
 };
 
-//ADD UNAVAILABLE PERIOD MANUALLY
+// ADD UNAVAILABLE PERIOD MANUALLY
 export const addUnavailablePeriod = async (req, res) => {
   try {
     const { equipmentId } = req.params;
@@ -86,6 +89,14 @@ export const addUnavailablePeriod = async (req, res) => {
       });
     }
 
+    // Only the owner may change this equipment's availability.
+    if (equipment.ownerId.toString() !== req.user.id) {
+      return res.status(403).json({
+        message:
+          "You are not authorized to change this equipment's availability",
+      });
+    }
+
     equipment.unavailablePeriods.push({
       startDate: parsedStartDate,
       endDate: parsedEndDate,
@@ -98,9 +109,10 @@ export const addUnavailablePeriod = async (req, res) => {
       equipment,
     });
   } catch (error) {
+    console.error("Add unavailable period error:", error);
+
     return res.status(500).json({
       message: "Failed to add unavailable period",
-      error: error.message,
     });
   }
 };

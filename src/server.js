@@ -1,34 +1,33 @@
+
 import "dotenv/config";
 import express from "express";
 import connectDB from "./config/db.js";
 import testEquipmentRoutes from "./routes/testEquipmentRoutes.js";
 import availabilityRoutes from "./routes/availabilityRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 
 const app = express();
+
 app.use(express.json());
-
-
 
 const PORT = process.env.PORT || 3000;
 
-//HOME ROUTE
-
+// HOME ROUTE
 app.get("/", (req, res) => {
-    res.send("WELCOME TO BACKEND API")
+    res.send("WELCOME TO BACKEND API");
 });
 
-
 // API ROUTES
-
 app.use("/api/test/equipment", testEquipmentRoutes);
 
 app.use("/api/equipment", availabilityRoutes);
 
 app.use("/api/bookings", bookingRoutes);
 
-//START SERVER
+app.use("/api/auth", authRoutes);
 
+// START SERVER
 const startServer = async () => {
     try {
         await connectDB();
