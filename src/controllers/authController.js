@@ -1,11 +1,10 @@
-
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
 
     if (
       typeof name !== "string" ||
@@ -16,7 +15,14 @@ const registerUser = async (req, res) => {
       password.length < 6
     ) {
       return res.status(400).json({
-        message: "Valid name, email, and password of at least 6 characters are required",
+        message:
+          "Valid name, email, and password of at least 6 characters are required",
+      });
+    }
+
+    if (!["renter", "owner"].includes(role)) {
+      return res.status(400).json({
+        message: "Role must be either renter or owner",
       });
     }
 
@@ -38,7 +44,7 @@ const registerUser = async (req, res) => {
       name: name.trim(),
       email: normalizedEmail,
       password: hashedPassword,
-      role: "renter",
+      role,
     });
 
     return res.status(201).json({

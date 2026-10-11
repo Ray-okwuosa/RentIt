@@ -107,6 +107,8 @@ const bookingSchema = new mongoose.Schema(
 
     cancellationReason: {
       type: String,
+      trim: true,
+      maxlength: [500, "Cancellation reason cannot exceed 500 characters"],
       default: null,
     },
   },

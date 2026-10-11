@@ -1,4 +1,3 @@
-
 import "dotenv/config";
 import express from "express";
 import connectDB from "./config/db.js";
@@ -6,6 +5,7 @@ import testEquipmentRoutes from "./routes/testEquipmentRoutes.js";
 import availabilityRoutes from "./routes/availabilityRoutes.js";
 import bookingRoutes from "./routes/bookingRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+import categoryRoutes from "./routes/categoryRoutes.js";
 
 const app = express();
 
@@ -26,6 +26,8 @@ app.use("/api/equipment", availabilityRoutes);
 app.use("/api/bookings", bookingRoutes);
 
 app.use("/api/auth", authRoutes);
+
+app.use("/api/categories", categoryRoutes);
 
 // START SERVER
 const startServer = async () => {

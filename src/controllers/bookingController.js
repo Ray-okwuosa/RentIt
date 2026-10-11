@@ -1,10 +1,12 @@
 import mongoose from "mongoose";
 import Booking from "../models/Booking.js";
+import Equipment from "../models/Equipment.js";
 
 import {
   parseDate,
   validateDateRange,
   calculateRentalDays,
+  datesOverlap,
 } from "../utils/dateUtils.js";
 
 import {
@@ -189,7 +191,43 @@ export const approveBooking = async (req, res) => {
         throw new Error("PAYMENT_NOT_COMPLETED");
       }
 
-      // 4. Check for an existing booking that has
+      
+      // 4. Recheck the equipment's current availability.
+      const equipment = await Equipment.findOneAndUpdate(
+        { _id: booking.equipmentId },
+        { $inc: { bookingLockVersion: 1 } },
+        {
+          new: true,
+          session,
+          runValidators: true,
+        }
+      );
+
+      if (!equipment) {
+        throw new Error("EQUIPMENT_NOT_FOUND");
+      }
+
+      if (equipment.status !== "active") {
+        throw new Error("EQUIPMENT_INACTIVE");
+      }
+
+      // Check whether the owner has manually blocked these dates.
+      const manuallyUnavailable = equipment.unavailablePeriods.some(
+        (period) =>
+          datesOverlap(
+            period.startDate,
+            period.endDate,
+            booking.startDate,
+            booking.endDate
+          )
+      );
+
+      if (manuallyUnavailable) {
+        throw new Error("EQUIPMENT_MANUALLY_UNAVAILABLE");
+      }
+
+
+      // 5. Check for an existing booking that has
       // already claimed these rental dates.
       const conflictingBooking = await Booking.findOne({
         _id: { $ne: booking._id },
@@ -205,12 +243,12 @@ export const approveBooking = async (req, res) => {
         throw new Error("BOOKING_CONFLICT");
       }
 
-      // 5. Approve the winning booking
+      // 6. Approve the winning booking
       booking.status = "approved";
 
       await booking.save({ session });
 
-      // 6. Find competing paid pending requests.
+      // 7. Find competing paid pending requests.
       // Only overlapping dates for the same equipment
       // should be affected.
       const competingBookings = await Booking.find({
@@ -222,7 +260,7 @@ export const approveBooking = async (req, res) => {
         endDate: { $gte: booking.startDate },
       }).session(session);
 
-      // 7. Reject competing requests and record
+      // 8. Reject competing requests and record
       // that their payments require refunds.
       for (const competingBooking of competingBookings) {
         competingBooking.status = "rejected";
@@ -272,6 +310,27 @@ export const approveBooking = async (req, res) => {
         message: "You are not authorized to approve this booking",
       });
     }
+
+    if (error.message === "EQUIPMENT_NOT_FOUND") {
+      return res.status(404).json({
+        message: "The equipment associated with this booking was not found",
+      });
+    }
+
+    if (error.message === "EQUIPMENT_INACTIVE") {
+      return res.status(409).json({
+        message: "This equipment is currently inactive",
+        reason: "EQUIPMENT_INACTIVE",
+      });
+    }
+
+    if (error.message === "EQUIPMENT_MANUALLY_UNAVAILABLE") {
+      return res.status(409).json({
+        message: "The equipment is unavailable for the selected dates",
+        reason: "MANUALLY_UNAVAILABLE",
+      });
+    }
+
 
     //General error handling for unexpected errors
     console.error("Approve booking error:", error);

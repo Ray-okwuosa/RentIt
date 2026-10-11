@@ -62,9 +62,11 @@ export const getEquipmentAvailability = async (
       endDate,
     });
   } catch (error) {
+    console.error("Availability check failed:", error);
+
     return res.status(500).json({
       message: "Failed to check equipment availability",
-      error: error.message,
     });
   }
+
 };

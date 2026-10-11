@@ -1,7 +1,27 @@
-const ONE_DAY_IN_MS = 1000 * 60 * 60 * 24;
+const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
 
+// Accept date-only strings in YYYY-MM-DD format.
+// Store and compare dates consistently at UTC midnight.
 export const parseDate = (dateString) => {
-  return new Date(dateString);
+  if (
+    typeof dateString !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(dateString)
+  ) {
+    return new Date(NaN);
+  }
+
+  const date = new Date(`${dateString}T00:00:00.000Z`);
+
+  // JavaScript can normalize impossible dates, such as February 30.
+  // Reject them instead of silently changing the requested date.
+  if (
+    !isValidDate(date) ||
+    date.toISOString().slice(0, 10) !== dateString
+  ) {
+    return new Date(NaN);
+  }
+
+  return date;
 };
 
 export const isValidDate = (date) => {
@@ -24,7 +44,7 @@ export const validateDateRange = (startDate, endDate) => {
   if (!isValidDate(startDate) || !isValidDate(endDate)) {
     return {
       valid: false,
-      message: "Invalid start date or end date",
+      message: "Dates must be valid and use YYYY-MM-DD format",
     };
   }
 
@@ -44,17 +64,17 @@ export const validateDateRange = (startDate, endDate) => {
     };
   }
 
-  return {
-    valid: true,
-  };
+  return { valid: true };
 };
 
+// Both the start and end dates are included in the rental.
 export const calculateRentalDays = (startDate, endDate) => {
   const difference = endDate.getTime() - startDate.getTime();
 
-  return Math.floor(difference / ONE_DAY_IN_MS) + 1;
+  return difference / ONE_DAY_IN_MS + 1;
 };
 
+// Sharing even one date means the periods overlap.
 export const datesOverlap = (
   existingStart,
   existingEnd,

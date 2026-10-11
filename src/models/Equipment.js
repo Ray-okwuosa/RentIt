@@ -49,6 +49,11 @@ const equipmentSchema = new mongoose.Schema(
       default: "active",
     },
 
+    bookingLockVersion: {
+      type: Number,
+      default: 0,
+    },
+
     unavailablePeriods: {
       type: [unavailablePeriodSchema],
       default: [],
