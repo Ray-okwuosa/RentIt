@@ -1,14 +1,27 @@
+
 import User from "../Models/user.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
 const registerUser = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        const {
+            name,
+            email,
+            password,
+            role = "renter"
+        } = req.body;
 
         if (!name || !email || !password) {
             return res.status(400).json({
                 message: "Name, email and password are required"
+            });
+        }
+
+        // Only renters and equipment owners can register publicly.
+        if (!["renter", "owner"].includes(role)) {
+            return res.status(400).json({
+                message: "Role must be renter or owner"
             });
         }
 
@@ -26,22 +39,29 @@ const registerUser = async (req, res) => {
             name,
             email,
             password: hashedPassword,
-            role: "renter"
+            role
         });
 
         await user.save();
 
         return res.status(201).json({
-            message: "User registered successfully"
+            message: "User registered successfully",
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+            }
         });
 
     } catch (error) {
+        console.error("Registration error:", error);
+
         return res.status(500).json({
             message: "Server error during registration"
         });
     }
 };
-
 
 
 const loginUser = async (req, res) => {
@@ -96,12 +116,13 @@ const loginUser = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("Login error:", error);
+
         return res.status(500).json({
             message: "Server error during login"
         });
     }
 };
-
 
 
 const updateUserRole = async (req, res) => {
@@ -143,6 +164,8 @@ const updateUserRole = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("Update user role error:", error);
+
         return res.status(500).json({
             message: "Server error while updating user role"
         });
@@ -150,10 +173,11 @@ const updateUserRole = async (req, res) => {
 };
 
 
-
 const createFirstAdmin = async (req, res) => {
     try {
-        const existingAdmin = await User.findOne({ role: "admin" });
+        const existingAdmin = await User.findOne({
+            role: "admin"
+        });
 
         if (existingAdmin) {
             return res.status(400).json({
@@ -191,6 +215,8 @@ const createFirstAdmin = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("Create first admin error:", error);
+
         return res.status(500).json({
             message: "Server error while creating first admin"
         });
@@ -198,4 +224,9 @@ const createFirstAdmin = async (req, res) => {
 };
 
 
-export { registerUser, loginUser, updateUserRole, createFirstAdmin };
+export {
+    registerUser,
+    loginUser,
+    updateUserRole,
+    createFirstAdmin
+};
