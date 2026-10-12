@@ -1,5 +1,5 @@
 import express from "express";
-import {registerUser, loginUser, updateUserRole, createFirstAdmin} from "../Controllers/authController.js";
+import {registerUser, loginUser, updateUserRole, createFirstAdmin, forgotPassword, resetPassword,} from "../Controllers/authController.js";
 import protect from "../Middleware/authMiddleware.js";
 import authorizeRoles from "../Middleware/roleMiddleware.js";
 
@@ -11,9 +11,6 @@ router.post("/register", registerUser);
 //login
 router.post("/login", loginUser);
 
-//create first Admin
-router.post("/setup-admin", createFirstAdmin);
-
 //Get logged-in user
 router.get("/me", protect, (req, res) => {
     res.status(200).json({
@@ -22,12 +19,7 @@ router.get("/me", protect, (req, res) => {
 });
 
 //Admin changes user's role
-router.put(
-    "/users/role",
-    protect,
-    authorizeRoles("admin"),
-    updateUserRole
-);
+router.put("/users/role", protect, authorizeRoles("admin"), updateUserRole);
 
 //Renter-only
 router.get("/renter-only", protect, authorizeRoles("renter"), (req, res) => {
@@ -43,11 +35,18 @@ router.get("/owner-only", protect, authorizeRoles("owner"), (req, res) => {
     });
 });
 
+// Create the first admin
+router.post("/setup-admin", createFirstAdmin);
+
 //Admin
 router.get("/admin-only", protect, authorizeRoles("admin"), (req, res) => {
     res.json({
         message: "Welcome admin"
     });
 });
+
+
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password/:token", resetPassword);
 
 export default router;

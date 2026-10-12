@@ -5,7 +5,7 @@ const protect = async (req, res, next) => {
 
     if (
         req.headers.authorization &&
-        req.headers.authorization.startsWith("Bearer")
+        req.headers.authorization.startsWith("Bearer ")
     ) {
         token = req.headers.authorization.split(" ")[1];
     }
@@ -22,9 +22,24 @@ const protect = async (req, res, next) => {
         req.user = decoded;
 
         next();
+
     } catch (error) {
-        return res.status(401).json({
-            message: "Not authorized, invalid token"
+        if (
+
+            error.name === "JsonWebTokenError" ||
+            error.name === "TokenExpiredError" ||
+            error.name === "NotBeforeError"
+            
+        ) {
+            return res.status(401).json({
+                message: "Not authorized, invalid or expired token",
+            });
+        }
+
+        console.error("Authentication error:", error);
+
+        return res.status(500).json({
+            message: "Authentication service error",
         });
     }
 };
