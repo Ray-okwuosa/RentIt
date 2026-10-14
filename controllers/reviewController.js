@@ -24,10 +24,12 @@ const isAdmin = (user) => user.role === "admin";
 const cleanText = (value, max = 1000) =>
   typeof value === "string" && value.trim() ? value.trim().slice(0, max) : undefined;
 
-const parseRating = (value) => {
+const RATING_FIELDS = ["communicationRating", "reliabilityRating", "equipmentRating"];
+
+const parseRating = (value, field) => {
   const n = Number(value);
   if (value === null || value === "" || !Number.isInteger(n) || n < 1 || n > 5) {
-    throw new AppError("Rating must be a whole number from 1 to 5.", 400);
+    throw new AppError(`${field} must be a whole number from 1 to 5.`, 400);
   }
   return n;
 };
@@ -53,8 +55,9 @@ const listPublicReviews = async (req, res, field, id) => {
   const { page, limit, skip } = paginate(req.query);
 
   const filter = { [field]: id, isHidden: false };
+  // ?rating=4 -> reviews whose overall rating rounds to 4 stars (3.5 up to, not including, 4.5)
   const stars = parseInt(req.query.rating);
-  if (stars >= 1 && stars <= 5) filter.rating = stars;
+  if (stars >= 1 && stars <= 5) filter.rating = { $gte: stars - 0.5, $lt: stars + 0.5 };
 
   const sort = { ...(SORTS[req.query.sort] || SORTS.newest), _id: -1 };
 
@@ -89,12 +92,13 @@ exports.getOwnerReviews = asyncHandler((req, res) => listPublicReviews(req, res,
 
 // ---------- renter ----------
 
-// POST /api/reviews   { booking, rating, comment? }
+// POST /api/reviews   { booking, communicationRating, reliabilityRating, equipmentRating, comment? }
+// Each rating is a whole number from 1 to 5. The overall rating is their average, set by the model.
 exports.createReview = asyncHandler(async (req, res) => {
   const { booking: bookingId, comment } = req.body;
   if (!mongoose.isValidObjectId(bookingId)) throw new AppError("A valid booking id is required.", 400);
 
-  const rating = parseRating(req.body.rating);
+  const ratings = Object.fromEntries(RATING_FIELDS.map((field) => [field, parseRating(req.body[field], field)]));
 
   const booking = await Booking.findById(bookingId);
   if (!booking) throw new AppError("Booking not found.", 404);
@@ -118,7 +122,7 @@ exports.createReview = asyncHandler(async (req, res) => {
       equipment: booking.equipment,
       owner: booking.owner,
       renter: req.user._id,
-      rating,
+      ...ratings,
       comment: cleanText(comment),
     });
   } catch (err) {
@@ -179,7 +183,8 @@ exports.getBookingReview = asyncHandler(async (req, res) => {
   res.json({ status: "success", data: { review, canReview } });
 });
 
-// PATCH /api/reviews/:id   { rating?, comment? }  (the author, within the review window)
+// PATCH /api/reviews/:id   { communicationRating?, reliabilityRating?, equipmentRating?, comment? }
+// (the author, within the review window). Send only what changed; the overall rating is recalculated.
 exports.updateReview = asyncHandler(async (req, res) => {
   const review = await loadReview(req.params.id);
 
@@ -187,11 +192,12 @@ exports.updateReview = asyncHandler(async (req, res) => {
   if (!withinWindow(review.createdAt)) {
     throw new AppError(`Reviews can only be edited within ${reviewWindowDays()} days of posting.`, 409);
   }
-  if (req.body.rating === undefined && req.body.comment === undefined) {
-    throw new AppError("Provide a rating or a comment to update.", 400);
+  const changedRatings = RATING_FIELDS.filter((field) => req.body[field] !== undefined);
+  if (changedRatings.length === 0 && req.body.comment === undefined) {
+    throw new AppError("Provide at least one rating or a comment to update.", 400);
   }
 
-  if (req.body.rating !== undefined) review.rating = parseRating(req.body.rating);
+  for (const field of changedRatings) review[field] = parseRating(req.body[field], field);
   if (req.body.comment !== undefined) review.comment = cleanText(req.body.comment);
   await review.save();
 
