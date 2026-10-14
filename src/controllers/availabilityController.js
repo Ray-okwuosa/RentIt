@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import Equipment from "../models/Equipment.js";
 import {
   parseDate,
   validateDateRange,
@@ -7,6 +8,52 @@ import {
 import {
   checkEquipmentAvailability,
 } from "../services/availabilityService.js";
+
+export const getAllEquipment = async (req, res) => {
+  try {
+    const equipment = await Equipment.find().populate("ownerId", "name email");
+    return res.status(200).json({
+      success: true,
+      count: equipment.length,
+      equipment,
+    });
+  } catch (error) {
+    console.error("Failed to retrieve equipment:", error);
+    return res.status(500).json({
+      message: "Failed to retrieve equipment",
+    });
+  }
+};
+
+export const getEquipmentById = async (req, res) => {
+  try {
+    const { equipmentId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(equipmentId)) {
+      return res.status(400).json({
+        message: "Invalid equipment ID",
+      });
+    }
+
+    const equipment = await Equipment.findById(equipmentId).populate("ownerId", "name email");
+
+    if (!equipment) {
+      return res.status(404).json({
+        message: "Equipment not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      equipment,
+    });
+  } catch (error) {
+    console.error("Failed to retrieve equipment:", error);
+    return res.status(500).json({
+      message: "Failed to retrieve equipment",
+    });
+  }
+};
 
 export const getEquipmentAvailability = async (
   req,

@@ -175,8 +175,11 @@ export const approveBooking = async (req, res) => {
         throw new Error("BOOKING_NOT_FOUND");
       }
 
-      // Only the owner associated with this booking can approve it.
-      if (booking.ownerId.toString() !== req.user.id) {
+      // Only the owner associated with this booking (or admin) can approve it.
+      const isOwner = (booking.ownerId?._id || booking.ownerId).toString() === req.user.id;
+      const isAdmin = req.user.role === "admin";
+
+      if (!isOwner && !isAdmin) {
         throw new Error("NOT_BOOKING_OWNER");
       }
 
@@ -186,12 +189,15 @@ export const approveBooking = async (req, res) => {
       }
 
       // 3. Payment must have been verified by the
-      // payment provider/webhook before approval.
-      if (booking.paymentStatus !== "succeeded") {
+      // payment provider/webhook before approval (admin can bypass if needed).
+      if (booking.paymentStatus !== "succeeded" && !isAdmin) {
         throw new Error("PAYMENT_NOT_COMPLETED");
       }
 
-      
+      if (isAdmin && booking.paymentStatus !== "succeeded") {
+        booking.paymentStatus = "succeeded";
+      }
+
       // 4. Recheck the equipment's current availability.
       const equipment = await Equipment.findOneAndUpdate(
         { _id: booking.equipmentId },
@@ -362,8 +368,11 @@ export const rejectBooking = async (req, res) => {
       });
     }
 
-    // Only the owner associated with this booking can reject it.
-    if (booking.ownerId.toString() !== req.user.id) {
+    // Only the owner associated with this booking (or admin) can reject it.
+    const isOwner = (booking.ownerId?._id || booking.ownerId).toString() === req.user.id;
+    const isAdmin = req.user.role === "admin";
+
+    if (!isOwner && !isAdmin) {
       return res.status(403).json({
         message: "You are not authorized to reject this booking",
       });
@@ -421,13 +430,14 @@ export const cancelBooking = async (req, res) => {
       });
     }
 
-    // Only the renter or owner associated with this booking can cancel it.
+    // Only the renter, owner, or admin associated with this booking can cancel it.
     const userId = req.user.id;
 
-    const isRenter = booking.renterId.toString() === userId;
-    const isOwner = booking.ownerId.toString() === userId;
+    const isRenter = (booking.renterId?._id || booking.renterId).toString() === userId;
+    const isOwner = (booking.ownerId?._id || booking.ownerId).toString() === userId;
+    const isAdmin = req.user.role === "admin";
 
-    if (!isRenter && !isOwner) {
+    if (!isRenter && !isOwner && !isAdmin) {
       return res.status(403).json({
         message: "You are not authorized to cancel this booking",
       });
@@ -436,6 +446,8 @@ export const cancelBooking = async (req, res) => {
     const cancellableStatuses = [
       "pending",
       "approved",
+      "active",
+      "picked_up",
     ];
 
     if (!cancellableStatuses.includes(booking.status)) {
@@ -446,7 +458,8 @@ export const cancelBooking = async (req, res) => {
     }
 
     booking.status = "cancelled";
-    booking.cancellationReason = reason || null;
+    booking.cancellationReason =
+      reason || (isAdmin ? "Cancelled by admin" : isRenter ? "Cancelled by renter" : "Cancelled by owner");
 
     if (booking.paymentStatus === "succeeded") {
       booking.refundStatus = "pending";
@@ -470,8 +483,8 @@ export const cancelBooking = async (req, res) => {
   }
 };
 
-// GET BOOKING BY ID
-export const getBookingById = async (req, res) => {
+// COMPLETE BOOKING
+export const completeBooking = async (req, res) => {
   try {
     const { bookingId } = req.params;
 
@@ -489,13 +502,68 @@ export const getBookingById = async (req, res) => {
       });
     }
 
-    // Only the renter or owner associated with this booking can view it.
+    const userId = req.user.id;
+    const isOwner = (booking.ownerId?._id || booking.ownerId).toString() === userId;
+    const isAdmin = req.user.role === "admin";
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({
+        message: "You are not authorized to mark this booking as completed",
+      });
+    }
+
+    if (["cancelled", "rejected", "completed"].includes(booking.status)) {
+      return res.status(400).json({
+        message: `Booking cannot be completed because its current status is ${booking.status}`,
+      });
+    }
+
+    booking.status = "completed";
+    await booking.save();
+
+    return res.status(200).json({
+      message: "Booking marked as completed successfully",
+      booking,
+    });
+  } catch (error) {
+    console.error("Complete booking error:", error);
+
+    return res.status(500).json({
+      message: "Failed to complete booking",
+    });
+  }
+};
+
+// GET BOOKING BY ID
+export const getBookingById = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+      return res.status(400).json({
+        message: "Invalid booking ID",
+      });
+    }
+
+    const booking = await Booking.findById(bookingId)
+      .populate("equipmentId", "name pricePerDay securityDeposit status")
+      .populate("ownerId", "name email")
+      .populate("renterId", "name email");
+
+    if (!booking) {
+      return res.status(404).json({
+        message: "Booking not found",
+      });
+    }
+
+    // Only the renter, owner, or admin associated with this booking can view it.
     const userId = req.user.id;
 
-    const isRenter = booking.renterId.toString() === userId;
-    const isOwner = booking.ownerId.toString() === userId;
+    const isRenter = (booking.renterId?._id || booking.renterId)?.toString() === userId;
+    const isOwner = (booking.ownerId?._id || booking.ownerId)?.toString() === userId;
+    const isAdmin = req.user.role === "admin";
 
-    if (!isRenter && !isOwner) {
+    if (!isRenter && !isOwner && !isAdmin) {
       return res.status(403).json({
         message: "You are not authorized to view this booking",
       });
@@ -531,6 +599,9 @@ export const getAllBookings = async (req, res) => {
     }
 
     const bookings = await Booking.find(filter)
+      .populate("equipmentId", "name pricePerDay securityDeposit status")
+      .populate("ownerId", "name email")
+      .populate("renterId", "name email")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
