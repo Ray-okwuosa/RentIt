@@ -27,6 +27,9 @@ import adminRoutes from './adminRoutes.js';
 import notificationRoutes from './notificationRoutes.js';
 import devRoutes from './devRoutes.js';
 import { settings } from '../config/settings.js';
+import { auth } from '../middlewares/auth.js';
+import paymentModule from '../../payments/index.js';
+const { createPaymentsRouter } = paymentModule;
 
 const router = Router();
 
@@ -35,6 +38,7 @@ router.use('/cart', cartRoutes);
 router.use('/', dashboardRoutes);
 router.use('/admin', adminRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/', createPaymentsRouter({ protect: auth }));
 if (settings().enableDevRoutes) router.use('/dev', devRoutes);
 
 export default router;
