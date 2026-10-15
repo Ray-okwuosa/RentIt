@@ -26,11 +26,11 @@ const config = require(path.join(ROOT, 'config'));
 const { mongoose } = fake;
 const bookingSchema = new mongoose.Schema(
   {
-    renter: { type: mongoose.Schema.Types.ObjectId },
-    owner: { type: mongoose.Schema.Types.ObjectId },
-    equipment: { type: mongoose.Schema.Types.ObjectId },
-    totalPrice: { type: Number }, // naira, as in config.booking.amountsInMinorUnits = false
-    securityDeposit: { type: Number },
+    renterId: { type: mongoose.Schema.Types.ObjectId },
+    ownerId: { type: mongoose.Schema.Types.ObjectId },
+    equipmentId: { type: mongoose.Schema.Types.ObjectId },
+    rentalAmount: { type: Number }, // naira, as in config.booking.amountsInMinorUnits = false
+    depositAmount: { type: Number },
     startDate: { type: Date },
     endDate: { type: Date },
     status: { type: String, default: 'pending' },
@@ -52,11 +52,11 @@ function mkUser(role, extra = {}) {
 async function mkBooking({ renter, owner, price = 50000, deposit = 20000, startInHours = 72, hours = 24, status = 'approved' }) {
   const start = new Date(Date.now() + startInHours * HOUR);
   return Booking.create({
-    renter: renter._id,
-    owner: owner._id,
-    equipment: oid(),
-    totalPrice: price,
-    securityDeposit: deposit,
+    renterId: renter._id,
+    ownerId: owner._id,
+    equipmentId: oid(),
+    rentalAmount: price,
+    depositAmount: deposit,
     startDate: start,
     endDate: new Date(start.getTime() + hours * HOUR),
     status,

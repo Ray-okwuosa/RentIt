@@ -47,11 +47,11 @@ module.exports = {
   booking: {
     modelName: 'Booking',
     fields: {
-      renter: 'renter',
-      owner: 'owner',
-      equipment: 'equipment',
-      rentalAmount: 'totalPrice', // rental price for the whole period
-      depositAmount: 'securityDeposit',
+      renter: 'renterId',
+      owner: 'ownerId',
+      equipment: 'equipmentId',
+      rentalAmount: 'rentalAmount', // rental price for the whole period
+      depositAmount: 'depositAmount',
       startDate: 'startDate',
       endDate: 'endDate',
       status: 'status',
@@ -59,8 +59,8 @@ module.exports = {
     },
     // true if booking amounts are already stored in kobo; false if in naira (decimals allowed)
     amountsInMinorUnits: false,
-    payableStatuses: ['approved', 'confirmed'],
-    cancelledStatuses: ['cancelled', 'canceled'],
+    payableStatuses: ['approved'],
+    cancelledStatuses: ['cancelled'],
     // status to move the booking to once paid (null = leave status alone, only set paymentStatus)
     statusAfterPayment: null,
   },
